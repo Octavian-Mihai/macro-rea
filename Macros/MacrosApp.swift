@@ -29,13 +29,20 @@ struct RootView: View {
         .overlay(alignment: .bottomTrailing) {
             if onboarded { QuickAddButton(addingMeal: $quickMeal).padding(.trailing, 16).padding(.bottom, 78) }
         }
-        .sheet(item: $quickMeal) { meal in
+        .sheet(item: $quickMeal, onDismiss: { AddDraft.clear() }) { meal in
             AddFoodView(title: "Add to \(meal.title)", day: day, meal: meal, allowRecipes: true) { item, q in
                 FoodLogger.log(ctx, item: item, qty: q, day: day, meal: meal)
             }
         }
         .fullScreenCover(isPresented: .constant(!onboarded)) { OnboardingView() }
         .task { if healthSync { await Health.shared.importWeights(into: ctx) } }
+        .onAppear {
+            // The app was closed while a food was being entered: reopen the add sheet where the user left off.
+            if onboarded, quickMeal == nil, let d = AddDraft.load() {
+                day = Calendar.current.startOfDay(for: d.day)
+                quickMeal = Meal(rawValue: d.meal)
+            }
+        }
     }
 }
 

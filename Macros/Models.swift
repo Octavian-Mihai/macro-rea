@@ -160,14 +160,14 @@ struct Portion: Hashable, Identifiable, Codable {
 }
 
 /// Nutrition per 100 g, used for gram-based foods.
-struct Per100: Hashable {
+struct Per100: Hashable, Codable {
     var calories: Double, protein: Double, carbs: Double, fat: Double
     var micros: Micros
 }
 
 /// Lightweight, non-persisted food description used by search / scan / saved foods.
 /// Gram-based foods carry `per100` + household `portions`; custom foods are serving-only.
-struct FoodItem: Identifiable, Hashable {
+struct FoodItem: Identifiable, Hashable, Codable {
     var id = UUID()
     var name: String
     var brand: String = ""

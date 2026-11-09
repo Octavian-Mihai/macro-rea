@@ -21,7 +21,7 @@ struct DiaryView: View {
                 .toolbar { DayNavToolbar(day: $day, extra: {
                     Button("Copy yesterday's food here", action: copyYesterday)
                 }) }
-                .sheet(item: $addingMeal) { meal in
+                .sheet(item: $addingMeal, onDismiss: { AddDraft.clear() }) { meal in
                     AddFoodView(title: "Add to \(meal.title)", day: day, meal: meal, allowRecipes: true) { item, q in
                         FoodLogger.log(ctx, item: item, qty: q, day: day, meal: meal)
                     }

@@ -22,6 +22,7 @@ struct AddFoodView: View {
     @State private var selected: FoodItem?
     @State private var selectedRecipe: Recipe?
     @State private var cache: [String: [FoodItem]] = [:]
+    @State private var restored = false
 
     private var results: [FoodItem] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -69,27 +70,31 @@ struct AddFoodView: View {
                 }
             }
             .searchable(text: $query, prompt: "Search foods")
+            .onAppear(perform: restoreDraft)
             .onChange(of: query) { _, q in
                 database = q.trimmingCharacters(in: .whitespaces).count >= 2 ? FoodDB.shared.search(q) : []
+                saveDraft()
             }
+            .onChange(of: selected) { _, _ in saveDraft() }
+            .onChange(of: custom) { _, _ in saveDraft() }
             .task(id: query) { await searchOnline() }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { AddDraft.clear(); dismiss() } }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { scanning = true } label: { Image(systemName: "barcode.viewfinder") }
                     Button { custom = true } label: { Image(systemName: "square.and.pencil") }
                 }
             }
             .navigationDestination(item: $selected) { item in
-                FoodDetailView(item: item) { i, q in onCommit(i, q); dismiss() }
+                FoodDetailView(item: item) { i, q in onCommit(i, q); AddDraft.clear(); dismiss() }
             }
             .navigationDestination(item: $selectedRecipe) { r in
-                RecipeLogView(recipe: r, day: day, meal: meal) { dismiss() }
+                RecipeLogView(recipe: r, day: day, meal: meal) { AddDraft.clear(); dismiss() }
             }
             .navigationDestination(isPresented: $custom) {
-                CustomFoodView { i, q in onCommit(i, q); dismiss() }
+                CustomFoodView { i, q in onCommit(i, q); AddDraft.clear(); dismiss() }
             }
             .sheet(isPresented: $scanning) {
                 ScannerSheet { code in
@@ -98,6 +103,25 @@ struct AddFoodView: View {
                 }
             }
         }
+    }
+
+    private func saveDraft() {
+        guard restored else { return }
+        AddDraft.update {
+            $0.meal = meal.rawValue; $0.day = day; $0.query = query; $0.selected = selected; $0.customOpen = custom
+            if selected == nil { $0.qtyText = nil; $0.unit = nil }
+        }
+    }
+
+    /// Pick up where the user left off if the app was closed mid-entry.
+    private func restoreDraft() {
+        guard !restored else { return }
+        if let d = AddDraft.load() {
+            query = d.query
+            selected = d.selected
+            custom = d.customOpen
+        }
+        restored = true
     }
 
     /// Debounced search-as-you-type against the online sources (run in parallel; either may fail).
@@ -156,8 +180,10 @@ struct FoodDetailView: View {
 
     init(item: FoodItem, onCommit: @escaping (FoodItem, Double) -> Void) {
         self.base = item; self.onCommit = onCommit
-        _unit = State(initialValue: item.hasGrams ? "g" : item.servingText)
-        _qtyText = State(initialValue: item.hasGrams ? "100" : "1")
+        // Resume the amount typed before the app was closed (same food only).
+        let d = AddDraft.load().flatMap { $0.selected?.id == item.id ? $0 : nil }
+        _unit = State(initialValue: d?.unit ?? (item.hasGrams ? "g" : item.servingText))
+        _qtyText = State(initialValue: d?.qtyText ?? (item.hasGrams ? "100" : "1"))
     }
 
     private var qty: Double { Double(qtyText.replacingOccurrences(of: ",", with: ".")) ?? 0 }
@@ -197,7 +223,11 @@ struct FoodDetailView: View {
             MicrosSection(micros: it.micros.scaled(qty))
             Button("Add") { onCommit(it, qty) }.disabled(qty <= 0).bold()
         }
-        .onChange(of: unit) { _, u in qtyText = u == "g" ? "100" : "1" }
+        .onChange(of: unit) { _, u in
+            qtyText = u == "g" ? "100" : "1"
+            AddDraft.update { $0.unit = u; $0.qtyText = qtyText }
+        }
+        .onChange(of: qtyText) { _, q in AddDraft.update { $0.qtyText = q; $0.unit = unit } }
         .navigationTitle(base.shortName)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -206,17 +236,39 @@ struct FoodDetailView: View {
 struct CustomFoodView: View {
     var onCommit: (FoodItem, Double) -> Void
     @Environment(\.modelContext) private var ctx
-    @State private var name = ""
-    @State private var serving = "1 serving"
-    @State private var servingGrams = ""
-    @State private var cal = ""
-    @State private var p = ""
-    @State private var c = ""
-    @State private var f = ""
-    @State private var fiber = ""
-    @State private var sugar = ""
-    @State private var sodium = ""
-    @State private var saveIt = true
+    @State private var name: String
+    @State private var serving: String
+    @State private var servingGrams: String
+    @State private var cal: String
+    @State private var p: String
+    @State private var c: String
+    @State private var f: String
+    @State private var fiber: String
+    @State private var sugar: String
+    @State private var sodium: String
+    @State private var saveIt: Bool
+
+    init(onCommit: @escaping (FoodItem, Double) -> Void) {
+        self.onCommit = onCommit
+        let d = AddDraft.load()?.customFields ?? [:]
+        _name = State(initialValue: d["name"] ?? "")
+        _serving = State(initialValue: d["serving"] ?? "1 serving")
+        _servingGrams = State(initialValue: d["servingGrams"] ?? "")
+        _cal = State(initialValue: d["cal"] ?? "")
+        _p = State(initialValue: d["p"] ?? "")
+        _c = State(initialValue: d["c"] ?? "")
+        _f = State(initialValue: d["f"] ?? "")
+        _fiber = State(initialValue: d["fiber"] ?? "")
+        _sugar = State(initialValue: d["sugar"] ?? "")
+        _sodium = State(initialValue: d["sodium"] ?? "")
+        _saveIt = State(initialValue: d["saveIt"].map { $0 == "1" } ?? true)
+    }
+
+    /// Everything typed so far, mirrored into the saved draft.
+    private var fields: [String: String] {
+        ["name": name, "serving": serving, "servingGrams": servingGrams, "cal": cal, "p": p, "c": c, "f": f,
+         "fiber": fiber, "sugar": sugar, "sodium": sodium, "saveIt": saveIt ? "1" : "0"]
+    }
 
     private func num(_ s: String) -> Double { Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0 }
     private var calories: Double { cal.isEmpty ? num(p) * 4 + num(c) * 4 + num(f) * 9 : num(cal) }
@@ -250,6 +302,7 @@ struct CustomFoodView: View {
                 onCommit(g > 0 ? item.serving(Portion(label: serving, grams: g)) : item, 1)
             }.bold().disabled(calories <= 0)
         }
+        .onChange(of: fields) { _, f in AddDraft.update { $0.customFields = f } }
         .navigationTitle("Custom food")
         .navigationBarTitleDisplayMode(.inline)
     }
