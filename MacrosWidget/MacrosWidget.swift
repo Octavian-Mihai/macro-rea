@@ -29,14 +29,19 @@ struct CalorieRing: View {
     let snap: WidgetSnapshot
     var body: some View {
         let frac = min(1, snap.calories / max(1, snap.calTarget))
+        let over = snap.calories > snap.calTarget
+        let shown = Int(abs(snap.calTarget - snap.calories).rounded())
         ZStack {
-            Circle().stroke(.green.opacity(0.2), lineWidth: 10)
-            Circle().trim(from: 0, to: frac).stroke(.green, style: StrokeStyle(lineWidth: 10, lineCap: .round)).rotationEffect(.degrees(-90))
+            Circle().stroke((over ? Palette.over : Palette.calories).opacity(0.25), lineWidth: 10)
+            Circle().trim(from: 0, to: frac).stroke(over ? Palette.over : Palette.calories, style: StrokeStyle(lineWidth: 10, lineCap: .round)).rotationEffect(.degrees(-90))
             VStack(spacing: 0) {
-                Text(String(Int(max(0, snap.calTarget - snap.calories).rounded()))).font(.title2.bold().monospacedDigit())
-                Text("left").font(.caption2).foregroundStyle(.secondary)
+                Text(String(shown)).font(.title2.bold().monospacedDigit()).minimumScaleFactor(0.6).lineLimit(1)
+                Text(over ? "⚠︎ over" : "left").font(.caption).foregroundStyle(over ? Palette.over : .secondary)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Calories")
+        .accessibilityValue("\(shown) \(over ? "over" : "left") of \(Int(snap.calTarget.rounded()))")
     }
 }
 
@@ -44,9 +49,12 @@ struct MacroLine: View {
     let name: String, value: Double, target: Double, color: Color
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack { Text(name).font(.caption2); Spacer(); Text("\(Int(value.rounded()))/\(Int(target.rounded()))g").font(.caption2.monospacedDigit()) }
+            HStack { Text(name).font(.caption); Spacer(); Text("\(Int(value.rounded()))/\(Int(target.rounded()))g").font(.caption.monospacedDigit()) }
             ProgressView(value: min(1, value / max(1, target))).tint(color)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name)
+        .accessibilityValue("\(Int(value.rounded())) of \(Int(target.rounded())) grams")
     }
 }
 
@@ -66,10 +74,10 @@ struct MacrosWidgetView: View {
             HStack(spacing: 16) {
                 CalorieRing(snap: s).padding(4)
                 VStack(spacing: 8) {
-                    MacroLine(name: "Protein", value: s.protein, target: s.pTarget, color: .red)
-                    MacroLine(name: "Carbs", value: s.carbs, target: s.cTarget, color: .blue)
-                    MacroLine(name: "Fat", value: s.fat, target: s.fTarget, color: .orange)
-                    Text("\(Int(s.calories.rounded())) / \(Int(s.calTarget.rounded())) kcal").font(.caption2).foregroundStyle(.secondary)
+                    MacroLine(name: "Protein", value: s.protein, target: s.pTarget, color: Palette.protein)
+                    MacroLine(name: "Carbs", value: s.carbs, target: s.cTarget, color: Palette.carbs)
+                    MacroLine(name: "Fat", value: s.fat, target: s.fTarget, color: Palette.fat)
+                    Text("\(Int(s.calories.rounded())) / \(Int(s.calTarget.rounded())) kcal").font(.caption).foregroundStyle(.secondary)
                 }
             }
         default:

@@ -23,6 +23,7 @@ struct SettingsView: View {
                         Button("Load demo data") { DemoData.load(into: ctx) }
                     } header: { Text("Demo (local build only)") }
                 }
+                AppearanceSection()
                 Section { NavigationLink { RecipesView() } label: { Label("Recipes & templates", systemImage: "book") } }
                 Section {
                     Toggle("Sync with Apple Health", isOn: $healthSync)
@@ -30,9 +31,9 @@ struct SettingsView: View {
                     Text("Imports your weight history and writes weight and daily calories/macros to Health.")
                 }
                 Section {
-                    TextField("USDA API key override (optional)", text: $fdcKey).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    TextField("USDA API key (optional)", text: $fdcKey).textInputAutocapitalization(.never).autocorrectionDisabled()
                 } header: { Text("Food search") } footer: {
-                    Text("Adds US branded products. Normally the key comes from your .env file at build time; this field overrides it. With no key, a shared demo key is used (30 searches/hour).")
+                    Text("Adds US branded products to search. Optional: paste your own free USDA FoodData Central key to raise the daily search limit.")
                 }
                 ProfileFields(sex: $sex, age: $age, height: $height, activity: $activity, goalRate: $goalRate,
                               proteinPerKg: $proteinPerKg, fatPercent: $fatPercent, useLbs: $useLbs)
@@ -112,6 +113,19 @@ struct ProfileFields: View {
     @Binding var useLbs: Bool
 
     var body: some View {
+        AboutYouSection(sex: $sex, age: $age, height: $height, activity: $activity, useLbs: $useLbs)
+        GoalRateSection(goalRate: $goalRate, useLbs: useLbs)
+        MacroSection(proteinPerKg: $proteinPerKg, fatPercent: $fatPercent)
+    }
+}
+
+struct AboutYouSection: View {
+    @Binding var sex: String
+    @Binding var age: Int
+    @Binding var height: Double
+    @Binding var activity: Double
+    @Binding var useLbs: Bool
+    var body: some View {
         Section("About you") {
             Picker("Sex", selection: $sex) { ForEach(Sex.allCases) { Text($0.rawValue.capitalized).tag($0.rawValue) } }
             NumberField(title: "Age", unit: "years", value: Binding(get: { Double(age) }, set: { age = Int($0) }), range: 14...90)
@@ -119,12 +133,26 @@ struct ProfileFields: View {
             Picker("Activity", selection: $activity) { ForEach(Activity.allCases) { Text($0.title).tag($0.rawValue) } }
             Toggle("Use pounds (lb)", isOn: $useLbs)
         }
+    }
+}
+
+struct GoalRateSection: View {
+    @Binding var goalRate: Double
+    let useLbs: Bool
+    var body: some View {
         Section {
             let shown = Units.display(goalRate, lbs: useLbs)
             Text(abs(goalRate) < 0.01 ? "Maintain" :
                  String(format: "%@ %.2f %@ / week", goalRate < 0 ? "Lose" : "Gain", abs(shown), Units.label(lbs: useLbs)))
             Slider(value: $goalRate, in: -1.0...0.5, step: 0.05)
-        } header: { Text("Goal rate") } footer: { Text("Calorie target = your expenditure ± this rate (7700 kcal ≈ 1 kg).") }
+        } header: { Text("Goal rate") } footer: { Text("Your calorie target is your daily energy use adjusted by this weekly rate.") }
+    }
+}
+
+struct MacroSection: View {
+    @Binding var proteinPerKg: Double
+    @Binding var fatPercent: Double
+    var body: some View {
         Section("Macros") {
             Stepper(String(format: "Protein: %.1f g per kg bodyweight", proteinPerKg), value: $proteinPerKg, in: 0.8...3.5, step: 0.1)
             Stepper("Fat: \(Int(fatPercent * 100))% of calories", value: $fatPercent, in: 0.15...0.45, step: 0.01)
@@ -176,26 +204,88 @@ struct OnboardingView: View {
     @AppStorage(Keys.useLbs) private var useLbs = false
     @Environment(\.modelContext) private var ctx
     @State private var weightText = ""
+    @State private var step = 0
+
+    private var weightOK: Bool { Double(weightText.replacingOccurrences(of: ",", with: ".")) != nil }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section { Text("Set up your profile. Your calorie target adapts automatically as you log food and weight.") }
-                Section("Current weight (\(Units.label(lbs: useLbs)))") {
-                    TextField("e.g. 80", text: $weightText).keyboardType(.decimalPad)
-                }
-                ProfileFields(sex: $sex, age: $age, height: $height, activity: $activity, goalRate: $goalRate,
-                              proteinPerKg: $proteinPerKg, fatPercent: $fatPercent, useLbs: $useLbs)
-                Button("Get started") {
-                    if let v = Double(weightText.replacingOccurrences(of: ",", with: ".")) {
-                        ctx.insert(WeightEntry(day: .now, kg: Units.toKg(v, lbs: useLbs)))
+                switch step {
+                case 0:
+                    Section { Text("A few quick questions. Your calorie target then adapts automatically as you log food and weight.") }
+                    Section("Current weight (\(Units.label(lbs: useLbs)))") {
+                        TextField("e.g. 80", text: $weightText).keyboardType(.decimalPad)
                     }
-                    onboarded = true
+                    AboutYouSection(sex: $sex, age: $age, height: $height, activity: $activity, useLbs: $useLbs)
+                case 1:
+                    GoalRateSection(goalRate: $goalRate, useLbs: useLbs)
+                default:
+                    MacroSection(proteinPerKg: $proteinPerKg, fatPercent: $fatPercent)
+                    Section { Text("You can change any of this later in Settings.").font(.footnote).foregroundStyle(.secondary) }
                 }
-                .bold().disabled(Double(weightText.replacingOccurrences(of: ",", with: ".")) == nil)
             }
             .keyboardDoneButton()
-            .navigationTitle("Welcome")
+            .navigationTitle(["About you", "Your goal", "Your targets"][step])
+            .navigationBarTitleDisplayMode(.large)
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 10) {
+                    Text("Step \(step + 1) of 3").font(.footnote).foregroundStyle(.secondary)
+                    HStack {
+                        if step > 0 { Button("Back") { withAnimation { step -= 1 } }.buttonStyle(.bordered).controlSize(.large) }
+                        Button(step < 2 ? "Continue" : "Get started") { advance() }
+                            .buttonStyle(.borderedProminent).controlSize(.large).frame(maxWidth: .infinity)
+                            .disabled(step == 0 && !weightOK)
+                    }
+                }
+                .padding().background(.bar)
+            }
+        }
+    }
+
+    private func advance() {
+        if step < 2 { withAnimation { step += 1 }; return }
+        if let v = Double(weightText.replacingOccurrences(of: ",", with: ".")) {
+            ctx.insert(WeightEntry(day: .now, kg: Units.toKg(v, lbs: useLbs)))
+        }
+        onboarded = true
+    }
+}
+
+/// Colour theme and light/dark preference.
+struct AppearanceSection: View {
+    @AppStorage(Theme.storageKey, store: Theme.store) private var themeID = "classic"
+    @AppStorage("appearance") private var appearance = "system"
+
+    var body: some View {
+        Section {
+            ForEach(Theme.all) { t in
+                Button {
+                    themeID = t.id
+                    Theme.select(t.id)
+                } label: {
+                    HStack(spacing: 12) {
+                        HStack(spacing: -6) {
+                            ForEach([t.calories, t.protein, t.carbs, t.fat], id: \.self) { c in
+                                Circle().fill(c).frame(width: 22, height: 22).overlay(Circle().stroke(.background, lineWidth: 2))
+                            }
+                        }
+                        Text(t.name).foregroundStyle(.primary)
+                        Spacer()
+                        if t.id == themeID { Image(systemName: "checkmark").foregroundStyle(t.accent).fontWeight(.semibold) }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(t.id == themeID ? .isSelected : [])
+            }
+            Picker("Appearance", selection: $appearance) {
+                Text("System").tag("system")
+                Text("Light").tag("light")
+                Text("Dark").tag("dark")
+            }
+        } header: { Text("Theme") } footer: {
+            Text("Colours for calories, protein, carbs and fat. High contrast uses deeper tones that are easier to tell apart.")
         }
     }
 }

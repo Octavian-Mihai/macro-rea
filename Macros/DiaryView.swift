@@ -16,8 +16,14 @@ struct DiaryView: View {
         let plan = Plan.make(weights: allWeights, entries: allEntries, profile: reader.profile, applied: reader.applied)
         NavigationStack {
             DayList(day: day, plan: plan, addingMeal: $addingMeal)
-                .navigationTitle(dayTitle(day))
+                .navigationTitle("Diary")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .principal) {
+                    VStack(spacing: 0) {
+                        Text("Diary").font(.headline)
+                        Text(dayTitle(day)).font(.caption).foregroundStyle(.secondary)
+                    }
+                } }
                 .toolbar { DayNavToolbar(day: $day, extra: {
                     Button("Copy yesterday's food here", action: copyYesterday)
                 }) }
@@ -51,15 +57,15 @@ struct DayNavToolbar<Extra: View>: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button { shift(-1) } label: { Image(systemName: "chevron.left") }
+            Button { shift(-1) } label: { Label("Previous day", systemImage: "chevron.left").labelStyle(.iconOnly) }
         }
         ToolbarItem(placement: .topBarTrailing) {
             HStack {
-                Button { shift(1) } label: { Image(systemName: "chevron.right") }
+                Button { shift(1) } label: { Label("Next day", systemImage: "chevron.right").labelStyle(.iconOnly) }
                 Menu {
                     Button("Today") { day = Calendar.current.startOfDay(for: .now) }
                     extra()
-                } label: { Image(systemName: "ellipsis.circle") }
+                } label: { Label("More", systemImage: "ellipsis.circle").labelStyle(.iconOnly) }
             }
         }
     }
@@ -110,7 +116,7 @@ private struct DayList: View {
                         if !items.isEmpty {
                             Text("P \(items.reduce(0) { $0 + $1.protein }.gText) · C \(items.reduce(0) { $0 + $1.carbs }.gText) · F \(items.reduce(0) { $0 + $1.fat }.gText)"
                                  + (totalKcal > 0 ? " · \(Int((kcal / totalKcal * 100).rounded()))% of day" : ""))
-                                .font(.caption2).textCase(nil)
+                                .font(.caption).textCase(nil)
                         }
                     }
                 }
@@ -131,12 +137,12 @@ private struct DayList: View {
         func v(_ eaten: Double, _ target: Double) -> String { showLeft ? "\(Int((target - eaten).rounded()))" : "\(Int(eaten.rounded()))" }
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(showLeft ? "\(Int((g.calories - totalKcal).rounded())) kcal left" : "\(totalKcal.kcalText) kcal eaten")
-                    .font(.title3.bold().monospacedDigit())
+                Text(showLeft ? (totalKcal > g.calories ? "⚠︎ \(Int((totalKcal - g.calories).rounded())) kcal over" : "\(Int((g.calories - totalKcal).rounded())) kcal left") : "\(totalKcal.kcalText) kcal eaten")
+                    .font(.title3.bold().monospacedDigit()).foregroundStyle(totalKcal > g.calories && showLeft ? Palette.over : .primary)
                 Spacer()
                 Text("goal \(g.calories.kcalText)").font(.caption).foregroundStyle(.secondary)
             }
-            ProgressView(value: min(1, totalKcal / max(1, g.calories))).tint(totalKcal > g.calories ? .red : Palette.calories)
+            ProgressView(value: min(1, totalKcal / max(1, g.calories))).tint(totalKcal > g.calories ? Palette.over : Palette.calories)
             HStack {
                 Text("P \(v(p, g.protein))g").foregroundStyle(Palette.protein)
                 Spacer(); Text("C \(v(c, g.carbs))g").foregroundStyle(Palette.carbs)
@@ -226,7 +232,7 @@ struct DayMicrosView: View {
                     Text(String(format: r.value < 10 ? "%.1f %@" : "%.0f %@", r.value, r.unit)).monospacedDigit()
                     Text("/ \(Int(r.daily))").foregroundStyle(.secondary).font(.caption)
                 }
-                ProgressView(value: min(1, r.value / r.daily)).tint(r.name == "Sodium" || r.name == "Sugar" || r.name == "Saturated fat" ? .orange : .green)
+                ProgressView(value: min(1, r.value / r.daily)).tint(r.name == "Sodium" || r.name == "Sugar" || r.name == "Saturated fat" ? Palette.limit : Palette.calories)
             }
         }
         .navigationTitle("Micronutrients")
@@ -256,6 +262,7 @@ struct QuickAddButton: View {
             Image(systemName: "plus").font(.title2.bold()).foregroundStyle(.white)
                 .frame(width: 56, height: 56).background(Circle().fill(Palette.calories))
                 .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+                .accessibilityLabel("Add food")
         } primaryAction: { addingMeal = defaultMealForNow() }
     }
 }

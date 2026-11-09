@@ -14,6 +14,7 @@ struct DashboardView: View {
     @AppStorage(TodayPrefs.chartsKey) private var chartsRaw = TodayPrefs.defaultCharts
     @AppStorage("showCheckInBanner") private var showBanner = true
     @State private var customizing = false
+    @Environment(\.dynamicTypeSize) private var typeSize
     private var reader = ProfileReader()
 
     init(day: Binding<Date>) { _day = day }
@@ -47,28 +48,36 @@ struct DashboardView: View {
                 VStack(spacing: 14) {
                     if checkInDue && showBanner {
                         NavigationLink { CheckInView() } label: {
-                            HStack {
-                                Label("Weekly check-in is ready", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
-                                Spacer(); Image(systemName: "chevron.right").foregroundStyle(.secondary)
-                            }.padding().background(.background, in: RoundedRectangle(cornerRadius: 16))
+                            HStack(spacing: 12) {
+                                if !typeSize.isAccessibilitySize { Image(systemName: "checkmark.seal.fill").font(.title2).foregroundStyle(Palette.calories) }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Weekly check-in is ready").font(.headline).foregroundStyle(.primary)
+                                    if !typeSize.isAccessibilitySize { Text("Review and update your calorie target").font(.subheadline).foregroundStyle(.secondary) }
+                                }
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right").font(.body.weight(.semibold)).foregroundStyle(.secondary)
+                            }
+                            .padding()
+                            .background(Palette.calories.opacity(0.15), in: RoundedRectangle(cornerRadius: 16))
+                            .contentShape(RoundedRectangle(cornerRadius: 16))
                         }.buttonStyle(.plain)
                     }
 
                     chips
 
                     VStack(spacing: 14) {
+                        chart(data)
                         Picker("Mode", selection: $showLeft) {
                             Text("Eaten").tag(false)
                             Text("Left").tag(true)
                         }.pickerStyle(.segmented)
-                        chart(data)
                     }
                     .padding().background(.background, in: RoundedRectangle(cornerRadius: 20))
 
                     snapshot(totals, DayTotals.micros(dayEntries), plan.targets)
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 24)
+                .padding(.bottom, 80)   // room for the floating + button
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle(dayTitle(day))
@@ -94,6 +103,10 @@ struct DashboardView: View {
                 }
             }
         }
+        .mask(HStack(spacing: 0) {
+            Rectangle()
+            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 24)
+        })
             Button { customizing = true } label: {
                 Image(systemName: "slider.horizontal.3").font(.subheadline.weight(.medium))
                     .padding(.horizontal, 12).padding(.vertical, 9)
@@ -118,7 +131,7 @@ struct DashboardView: View {
     /// Numbers under the chart; which ones is up to the user (Customize Today).
     private func snapshot(_ t: DayTotals, _ m: Micros, _ g: Targets) -> some View {
         let list = Metric.parse(metricsRaw)
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: min(4, max(1, list.count))), spacing: 16) {
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: typeSize.isAccessibilitySize ? 1 : (typeSize >= .xxLarge ? min(2, max(1, list.count)) : min(4, max(1, list.count)))), spacing: 16) {
             ForEach(list) { stat($0, $0.eaten(t, m), $0.target(g)) }
         }
         .padding().background(.background, in: RoundedRectangle(cornerRadius: 20))
@@ -131,8 +144,8 @@ struct DashboardView: View {
         return VStack(spacing: 3) {
             Text(m.title).font(.caption).foregroundStyle(m.color).lineLimit(1).minimumScaleFactor(0.7)
             Text(showLeft ? n(abs(left)) : n(eaten)).font(.headline.monospacedDigit())
-                .foregroundStyle(showLeft && left < 0 ? .red : .primary)
-            Text(showLeft ? (left >= 0 ? "left" : "over") : "of \(Int(target.rounded()))\(m.unit)").font(.caption2).foregroundStyle(.secondary)
+                .foregroundStyle(showLeft && left < 0 ? Palette.over : .primary)
+            Text(showLeft ? (left >= 0 ? "left" : "⚠︎ over") : "of \(Int(target.rounded()))\(m.unit)").font(.caption).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity)
     }
 

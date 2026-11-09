@@ -31,7 +31,11 @@ struct WeightView: View {
                             LabeledContent("Last 7 days", value: String(format: "%+.2f %@", Units.display(w, lbs: useLbs), Units.label(lbs: useLbs)))
                         }
                     }
-                    Section { WeightChart(points: Array(tr.suffix(90)), lbs: useLbs).frame(height: 220) }
+                    Section {
+                        WeightChart(points: Array(tr.suffix(90)), lbs: useLbs).frame(height: 220)
+                        Label("Dots are daily weigh-ins; the line is your smoothed trend.", systemImage: "info.circle")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
                 Section {
                     DisclosureGroup(isExpanded: $showHistory) {
@@ -71,12 +75,19 @@ struct WeightChart: View {
             ForEach(points, id: \.day) { p in
                 if let r = p.raw {
                     PointMark(x: .value("Day", p.day), y: .value("Weight", Units.display(r, lbs: lbs)))
-                        .foregroundStyle(.gray.opacity(0.6)).symbolSize(25)
+                        .foregroundStyle(Color.secondary).symbolSize(25)
                 }
                 LineMark(x: .value("Day", p.day), y: .value("Trend", Units.display(p.trend, lbs: lbs)))
-                    .foregroundStyle(.green).interpolationMethod(.monotone)
+                    .foregroundStyle(Palette.calories).interpolationMethod(.monotone)
             }
         }
         .chartYScale(domain: .automatic(includesZero: false))
+        .accessibilityLabel("Weight trend chart")
+        .accessibilityValue(summary)
+    }
+    private var summary: String {
+        guard let f = points.first, let l = points.last else { return "No data" }
+        let u = Units.label(lbs: lbs)
+        return String(format: "Trend from %.1f to %.1f %@ over %d days", Units.display(f.trend, lbs: lbs), Units.display(l.trend, lbs: lbs), u, points.count)
     }
 }

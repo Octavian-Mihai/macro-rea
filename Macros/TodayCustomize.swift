@@ -34,7 +34,7 @@ enum Metric: String, CaseIterable, Identifiable {
         case .protein: Palette.protein
         case .carbs: Palette.carbs
         case .fat: Palette.fat
-        case .sodium, .sugar, .satFat: .orange
+        case .sodium, .sugar, .satFat: Palette.limit
         default: .teal
         }
     }
@@ -74,7 +74,7 @@ enum Metric: String, CaseIterable, Identifiable {
         }
     }
 
-    static let defaultList = "calories,protein,carbs,fat"
+    static let defaultList = "fiber,sugar,sodium,satFat"
     static func parse(_ s: String) -> [Metric] {
         let all = s.split(separator: ",").compactMap { Metric(rawValue: String($0)) }
         return Metric.allCases.filter { all.contains($0) }

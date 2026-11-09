@@ -30,10 +30,10 @@ struct InsightsView: View {
                 Section { NavigationLink { CheckInView() } label: { Label("Weekly check-in", systemImage: "checkmark.seal") } }
                 Section("Expenditure (TDEE)") {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(plan.expenditure.kcal.kcalText).font(.system(size: 34, weight: .bold, design: .rounded))
+                        Text(plan.expenditure.kcal.kcalText).font(.system(.largeTitle, design: .rounded, weight: .bold)).minimumScaleFactor(0.6).lineLimit(1)
                         Text("kcal/day").foregroundStyle(.secondary)
                     }
-                    ProgressView(value: plan.expenditure.confidence) { Text("Data confidence").font(.caption) }.tint(.green)
+                    ProgressView(value: plan.expenditure.confidence) { Text("Data confidence").font(.caption) }.tint(Palette.calories)
                     Text(plan.expenditure.confidence < 0.05
                          ? "Using a formula estimate (\(plan.expenditure.formulaKcal.kcalText) kcal). Log food and weight for 7+ days and it adapts to you."
                          : "Adapted from \(plan.expenditure.loggedDays) logged days and your weight trend. Formula baseline: \(plan.expenditure.formulaKcal.kcalText) kcal.")

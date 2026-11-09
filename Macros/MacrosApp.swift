@@ -14,21 +14,29 @@ struct RootView: View {
 
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var quickMeal: Meal?
+    @State private var tab = 0
+    @AppStorage(Theme.storageKey, store: Theme.store) private var themeID = "classic"
+    @AppStorage("appearance") private var appearance = "system"
     @Environment(\.modelContext) private var ctx
     @AppStorage(Keys.healthSync) private var healthSync = false
 
     var body: some View {
-        TabView {
-            DashboardView(day: $day).tabItem { Label("Today", systemImage: "chart.pie.fill") }
-            DiaryView(day: $day).tabItem { Label("Diary", systemImage: "fork.knife") }
-            WeightView().tabItem { Label("Weight", systemImage: "scalemass") }
-            InsightsView().tabItem { Label("Insights", systemImage: "chart.xyaxis.line") }
-            SettingsView().tabItem { Label("Settings", systemImage: "gearshape") }
+        TabView(selection: $tab) {
+            DashboardView(day: $day).tabItem { Label("Today", systemImage: "chart.pie.fill") }.tag(0)
+            DiaryView(day: $day).tabItem { Label("Diary", systemImage: "fork.knife") }.tag(1)
+            WeightView().tabItem { Label("Weight", systemImage: "scalemass") }.tag(2)
+            InsightsView().tabItem { Label("Insights", systemImage: "chart.xyaxis.line") }.tag(3)
+            SettingsView().tabItem { Label("Settings", systemImage: "gearshape") }.tag(4)
         }
         .contentMargins(.bottom, 72, for: .scrollContent)
         .overlay(alignment: .bottomTrailing) {
-            if onboarded { QuickAddButton(addingMeal: $quickMeal).padding(.trailing, 16).padding(.bottom, 78) }
+            // Logging food only makes sense on the two food screens; elsewhere the button just covers content.
+            if onboarded && tab <= 1 { QuickAddButton(addingMeal: $quickMeal).padding(.trailing, 16).padding(.bottom, 78) }
         }
+        // Palette reads the theme directly, so rebuild the screens when it changes.
+        .id(themeID)
+        .tint(Theme.named(themeID).accent)
+        .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
         .sheet(item: $quickMeal, onDismiss: { AddDraft.clear() }) { meal in
             AddFoodView(title: "Add to \(meal.title)", day: day, meal: meal, allowRecipes: true) { item, q in
                 FoodLogger.log(ctx, item: item, qty: q, day: day, meal: meal)
@@ -91,9 +99,3 @@ extension Double {
     var gText: String { String(Int(self.rounded())) + "g" }
 }
 
-enum Palette {
-    static let protein = Color.red
-    static let carbs = Color.blue
-    static let fat = Color.orange
-    static let calories = Color.green
-}

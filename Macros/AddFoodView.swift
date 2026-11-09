@@ -65,7 +65,10 @@ struct AddFoodView: View {
                 }
                 Section {
                     ForEach(results) { r in Button { selected = r } label: { FoodRow(item: r) } }
-                    if results.isEmpty && !searching { Text(query.isEmpty ? "Search for a food, or scan a barcode." : "No matches yet").foregroundStyle(.secondary) }
+                    if results.isEmpty && !searching {
+                        if query.isEmpty { ContentUnavailableView("Find a food", systemImage: "magnifyingglass", description: Text("Search by name, or scan a barcode.")) }
+                        else { Text("No matches yet").foregroundStyle(.secondary) }
+                    }
                     if searching { ProgressView().frame(maxWidth: .infinity) }
                 }
             }
@@ -83,8 +86,8 @@ struct AddFoodView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { AddDraft.clear(); dismiss() } }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { scanning = true } label: { Image(systemName: "barcode.viewfinder") }
-                    Button { custom = true } label: { Image(systemName: "square.and.pencil") }
+                    Button { scanning = true } label: { Label("Scan barcode", systemImage: "barcode.viewfinder").labelStyle(.iconOnly) }
+                    Button { custom = true } label: { Label("Create custom food", systemImage: "square.and.pencil").labelStyle(.iconOnly) }
                 }
             }
             .navigationDestination(item: $selected) { item in
@@ -165,7 +168,7 @@ struct FoodRow: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text((item.per100?.calories ?? item.calories).kcalText).foregroundStyle(.primary).monospacedDigit()
-                Text(item.hasGrams ? "kcal / 100 g" : "kcal / \(item.servingText)").font(.caption2).foregroundStyle(.secondary)
+                Text(item.hasGrams ? "kcal / 100 g" : "kcal / \(item.servingText)").font(.caption).foregroundStyle(.secondary)
             }
         }
     }

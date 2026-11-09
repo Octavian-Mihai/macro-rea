@@ -10,11 +10,11 @@ struct Ring: View {
     var showLeft = false
     var body: some View {
         let e = min(1, max(0, fraction))
-        let eatenColor = fraction > 1.0001 ? Color.red : color
+        let eatenColor = fraction > 1.0001 ? Palette.over : color
         let style = StrokeStyle(lineWidth: lineWidth, lineCap: .butt)
         ZStack {
-            Circle().trim(from: e, to: 1).stroke(showLeft ? color : color.opacity(0.2), style: style)
-            Circle().trim(from: 0, to: e).stroke(showLeft ? eatenColor.opacity(0.2) : eatenColor, style: style)
+            Circle().trim(from: e, to: 1).stroke(showLeft ? color : color.opacity(0.25), style: style)
+            Circle().trim(from: 0, to: e).stroke(showLeft ? eatenColor.opacity(0.25) : eatenColor, style: style)
         }
         .rotationEffect(.degrees(-90))
         .padding(lineWidth / 2)
@@ -30,10 +30,10 @@ struct SplitBar: View {
     var body: some View {
         GeometryReader { geo in
             let e = min(1, max(0, fraction))
-            let eatenColor = fraction > 1.0001 ? Color.red : color
+            let eatenColor = fraction > 1.0001 ? Palette.over : color
             HStack(spacing: 0) {
-                Rectangle().fill(showLeft ? eatenColor.opacity(0.2) : eatenColor).frame(width: geo.size.width * e)
-                Rectangle().fill(showLeft ? color : color.opacity(0.2))
+                Rectangle().fill(showLeft ? eatenColor.opacity(0.25) : eatenColor).frame(width: geo.size.width * e)
+                Rectangle().fill(showLeft ? color : color.opacity(0.25))
             }
             .clipShape(Capsule())
         }
@@ -95,21 +95,37 @@ enum ChartKind: String, CaseIterable, Identifiable {
 
 struct RingsChart: View {
     let d: ChartData
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .largeTitle) private var ringSize = 180
     var body: some View {
         let leftCal = d.targets.calories - d.totals.calories
+        let big = min(ringSize, 260)
         VStack(spacing: 16) {
             ZStack {
                 Ring(fraction: d.totals.calories / max(1, d.targets.calories), color: Palette.calories, lineWidth: 16, showLeft: d.showLeft)
                 VStack(spacing: 0) {
                     Text(d.showLeft ? abs(leftCal).kcalText : d.totals.calories.kcalText)
-                        .font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit()
-                        .foregroundStyle(d.showLeft && leftCal < 0 ? .red : .primary)
-                    Text(d.showLeft ? (leftCal >= 0 ? "kcal left" : "kcal over") : "kcal eaten").font(.caption).foregroundStyle(.secondary)
-                    Text("of \(d.targets.calories.kcalText)").font(.caption2).foregroundStyle(.tertiary)
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                        .foregroundStyle(d.showLeft && leftCal < 0 ? Palette.over : .primary)
+                    if d.showLeft && leftCal < 0 {
+                        Label("kcal over", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(Palette.over)
+                    } else {
+                        Text(d.showLeft ? "kcal left" : "kcal eaten").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text("of \(d.targets.calories.kcalText)").font(.caption).foregroundStyle(.secondary)
                 }
+                // The centre has a fixed amount of room, so cap its growth; everything outside the ring scales fully.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                .lineLimit(1).minimumScaleFactor(0.6)
+                .padding(.horizontal, 22)
             }
-            .frame(width: 180, height: 180)
-            HStack(spacing: 8) {
+            .frame(width: big, height: big)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(d.showLeft ? "Calories left" : "Calories eaten")
+            .accessibilityValue("\(Int((d.showLeft ? abs(leftCal) : d.totals.calories).rounded())) of \(Int(d.targets.calories.rounded())) kilocalories" + (leftCal < 0 ? ", over goal" : ""))
+            // Three rings side by side at normal sizes; a stack once text is large enough to need the width.
+            (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 16)) : AnyLayout(HStackLayout(spacing: 8))) {
                 MacroRing(name: "Protein", eaten: d.totals.protein, target: d.targets.protein, color: Palette.protein, showLeft: d.showLeft)
                 MacroRing(name: "Carbs", eaten: d.totals.carbs, target: d.targets.carbs, color: Palette.carbs, showLeft: d.showLeft)
                 MacroRing(name: "Fat", eaten: d.totals.fat, target: d.targets.fat, color: Palette.fat, showLeft: d.showLeft)
@@ -120,6 +136,7 @@ struct RingsChart: View {
 
 struct MacroRing: View {
     let name: String, eaten: Double, target: Double, color: Color, showLeft: Bool
+    @ScaledMetric(relativeTo: .body) private var size = 66
     var body: some View {
         let left = target - eaten
         VStack(spacing: 6) {
@@ -127,14 +144,21 @@ struct MacroRing: View {
                 Ring(fraction: eaten / max(1, target), color: color, lineWidth: 7, showLeft: showLeft)
                 Text(showLeft ? (left >= 0 ? "\(Int(left.rounded()))" : "+\(Int((-left).rounded()))") : "\(Int(eaten.rounded()))")
                     .font(.subheadline.bold().monospacedDigit())
-                    .foregroundStyle(showLeft && left < 0 ? .red : .primary)
+                    .foregroundStyle(showLeft && left < 0 ? Palette.over : .primary)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge).lineLimit(1).minimumScaleFactor(0.5)
+                    .padding(.horizontal, 8)
             }
-            .frame(width: 66, height: 66)
+            .frame(width: min(size, 130), height: min(size, 130))
             Text(name).font(.caption.weight(.medium))
-            Text(showLeft ? "g left of \(Int(target.rounded()))" : "of \(Int(target.rounded())) g")
-                .font(.caption2).foregroundStyle(.secondary)
+            Text(left < 0 ? "⚠︎ \(Int((-left).rounded())) g over" : (showLeft ? "g left of \(Int(target.rounded()))" : "of \(Int(target.rounded())) g"))
+                .font(.caption).foregroundStyle(left < 0 ? Palette.over : .secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name)
+        .accessibilityValue(left < 0 ? "\(Int((-left).rounded())) grams over goal of \(Int(target.rounded()))"
+                            : showLeft ? "\(Int(left.rounded())) grams left of \(Int(target.rounded()))"
+                            : "\(Int(eaten.rounded())) of \(Int(target.rounded())) grams")
     }
 }
 
@@ -156,9 +180,9 @@ struct BarsChart: View {
             HStack {
                 Text(name).font(.subheadline.weight(.semibold))
                 Spacer()
-                Text(d.showLeft ? (left >= 0 ? "\(Int(left.rounded())) \(unit) left" : "\(Int((-left).rounded())) \(unit) over")
+                Text(d.showLeft ? (left >= 0 ? "\(Int(left.rounded())) \(unit) left" : "⚠︎ \(Int((-left).rounded())) \(unit) over")
                                 : "\(Int(eaten.rounded())) / \(Int(target.rounded())) \(unit)")
-                    .font(.subheadline.monospacedDigit()).foregroundStyle(d.showLeft && left < 0 ? .red : .secondary)
+                    .font(.subheadline.monospacedDigit()).foregroundStyle(d.showLeft && left < 0 ? Palette.over : .secondary)
             }
             SplitBar(fraction: eaten / max(1, target), color: color, showLeft: d.showLeft)
         }
@@ -195,7 +219,7 @@ struct DonutChart: View {
                 .chartBackground { _ in
                     VStack(spacing: 0) {
                         Text(total.kcalText).font(.title2.bold().monospacedDigit())
-                        Text(d.showLeft ? "kcal to fill" : "kcal from macros").font(.caption2).foregroundStyle(.secondary)
+                        Text(d.showLeft ? "kcal to fill" : "kcal from macros").font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .frame(height: 240)
@@ -264,7 +288,7 @@ struct TimelineChart: View {
                         .foregroundStyle(d.showLeft ? hard : soft).lineStyle(StrokeStyle(lineWidth: d.showLeft ? 3.5 : 2))
                 }
                 RuleMark(y: .value("Goal", d.targets.calories)).foregroundStyle(.secondary).lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
-                    .annotation(position: .top, alignment: .trailing) { Text("goal").font(.caption2).foregroundStyle(.secondary) }
+                    .annotation(position: .top, alignment: .trailing) { Text("goal").font(.caption).foregroundStyle(.secondary) }
             }
             .chartXScale(domain: start...end)
             .chartXAxis { AxisMarks(values: .stride(by: .hour, count: 6)) { _ in AxisGridLine(); AxisValueLabel(format: .dateTime.hour()) } }
@@ -293,7 +317,7 @@ struct WeekChart: View {
             Chart(segs) { s in
                 BarMark(x: .value("Day", s.day, unit: .day), y: .value("kcal", s.kcal)).foregroundStyle(by: .value("Part", s.kind))
             }
-            .chartForegroundStyleScale(["Eaten": d.showLeft ? soft : hard, "Left": d.showLeft ? hard : soft, "Over": Color.red])
+            .chartForegroundStyleScale(["Eaten": d.showLeft ? soft : hard, "Left": d.showLeft ? hard : soft, "Over": Palette.over])
             .chartLegend(position: .bottom)
             .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.narrow)) } }
             .frame(height: 230)
@@ -343,7 +367,7 @@ struct MicrosChart: View {
                         Spacer()
                         Text(d.showLeft ? "\(Int((max(0, 1 - frac) * 100).rounded()))% left of daily value" : "\(Int((frac * 100).rounded()))% of daily value").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    SplitBar(fraction: frac, color: limit ? .orange : .green, showLeft: d.showLeft, height: 8)
+                    SplitBar(fraction: frac, color: limit ? Palette.limit : Palette.calories, showLeft: d.showLeft, height: 8)
                 }
             }
             if d.entries.allSatisfy({ $0.micros == Micros() }) {
