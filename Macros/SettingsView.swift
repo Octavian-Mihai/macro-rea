@@ -13,10 +13,16 @@ struct SettingsView: View {
     @AppStorage(Keys.healthSync) private var healthSync = false
     @AppStorage(Keys.fdcKey) private var fdcKey = ""
     @Environment(\.modelContext) private var ctx
+    @State private var confirmClear = false
 
     var body: some View {
         NavigationStack {
             Form {
+                if DemoData.available {
+                    Section {
+                        Button("Load demo data") { DemoData.load(into: ctx) }
+                    } header: { Text("Demo (local build only)") }
+                }
                 Section { NavigationLink { RecipesView() } label: { Label("Recipes & templates", systemImage: "book") } }
                 Section {
                     Toggle("Sync with Apple Health", isOn: $healthSync)
@@ -30,6 +36,8 @@ struct SettingsView: View {
                 }
                 ProfileFields(sex: $sex, age: $age, height: $height, activity: $activity, goalRate: $goalRate,
                               proteinPerKg: $proteinPerKg, fatPercent: $fatPercent, useLbs: $useLbs)
+                GoalFields()
+                Section { Button("Erase all logged data", role: .destructive) { confirmClear = true } }
             }
             .onChange(of: healthSync) { _, on in
                 guard on else { return }
@@ -38,6 +46,10 @@ struct SettingsView: View {
                 }
             }
                 .navigationTitle("Settings")
+                .alert("Erase all logged food and weight?", isPresented: $confirmClear) {
+                    Button("Erase", role: .destructive) { DemoData.clear(from: ctx) }
+                    Button("Cancel", role: .cancel) {}
+                } message: { Text("This can't be undone.") }
         }
     }
 }
@@ -70,6 +82,37 @@ struct ProfileFields: View {
             Stepper(String(format: "Protein: %.1f g per kg bodyweight", proteinPerKg), value: $proteinPerKg, in: 0.8...3.5, step: 0.1)
             Stepper("Fat: \(Int(fatPercent * 100))% of calories", value: $fatPercent, in: 0.15...0.45, step: 0.01)
             Text("Carbs fill the remaining calories.").font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Optional fixed goals. Empty / 0 = automatic from your profile; calories always adapt on their own.
+struct GoalFields: View {
+    @AppStorage(Keys.customProtein) private var protein = 0.0
+    @AppStorage(Keys.customCarbs) private var carbs = 0.0
+    @AppStorage(Keys.customFat) private var fat = 0.0
+    @AppStorage(Keys.fiberGoal) private var fiber = 28.0
+
+    var body: some View {
+        Section {
+            row("Protein", $protein, "g")
+            row("Carbs", $carbs, "g")
+            row("Fat", $fat, "g")
+            row("Fiber", $fiber, "g", auto: false)
+        } header: { Text("Daily goals") } footer: {
+            Text("Set your own protein, carbs and fat in grams. Leave a field empty to keep it automatic (from the settings above). Calories always follow your adaptive target.")
+        }
+    }
+
+    private func row(_ title: String, _ value: Binding<Double>, _ unit: String, auto: Bool = true) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField(auto ? "Auto" : "28", text: Binding(
+                get: { value.wrappedValue > 0 ? String(Int(value.wrappedValue.rounded())) : "" },
+                set: { value.wrappedValue = Double($0.filter(\.isNumber)) ?? 0 }))
+                .keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80)
+            Text(unit).foregroundStyle(.secondary)
         }
     }
 }

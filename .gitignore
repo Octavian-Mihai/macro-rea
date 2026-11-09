@@ -9,3 +9,8 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .DS_Store
+
+# developer-only sample data and generated project
+Macros/DemoData.local.swift
+local.xcconfig
+*.xcodeproj

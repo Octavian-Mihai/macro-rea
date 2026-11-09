@@ -8,6 +8,7 @@ struct WeightView: View {
     @AppStorage(Keys.useLbs) private var useLbs = false
     @AppStorage(Keys.healthSync) private var healthSync = false
     @State private var text = ""
+    @State private var showHistory = false
     @State private var date = Date()
 
     private var tr: [(day: Date, trend: Double, raw: Double?)] { Engine.trend(weights) }
@@ -32,11 +33,15 @@ struct WeightView: View {
                     }
                     Section { WeightChart(points: Array(tr.suffix(90)), lbs: useLbs).frame(height: 220) }
                 }
-                Section("History") {
-                    ForEach(weights) { w in
-                        HStack { Text(w.day.formatted(date: .abbreviated, time: .omitted)); Spacer(); Text(fmt(w.kg)) }
+                Section {
+                    DisclosureGroup(isExpanded: $showHistory) {
+                        ForEach(weights) { w in
+                            HStack { Text(w.day.formatted(date: .abbreviated, time: .omitted)); Spacer(); Text(fmt(w.kg)) }
+                        }
+                        .onDelete { idx in idx.forEach { ctx.delete(weights[$0]) } }
+                    } label: {
+                        HStack { Label("History", systemImage: "clock.arrow.circlepath"); Spacer(); Text("\(weights.count)").foregroundStyle(.secondary) }
                     }
-                    .onDelete { idx in idx.forEach { ctx.delete(weights[$0]) } }
                 }
             }
             .navigationTitle("Weight")

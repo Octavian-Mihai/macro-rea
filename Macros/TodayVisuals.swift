@@ -49,6 +49,10 @@ struct DayTotals {
 }
 
 /// Everything a chart needs for the selected day.
+extension DayTotals {
+    static func micros(_ entries: [FoodEntry]) -> Micros { entries.reduce(Micros()) { $0 + $1.micros } }
+}
+
 struct ChartData {
     let day: Date
     let entries: [FoodEntry]

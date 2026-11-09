@@ -5,6 +5,7 @@ struct Targets {
     var protein: Double
     var carbs: Double
     var fat: Double
+    var fiber: Double = 28
 }
 
 struct ExpenditureEstimate {
@@ -79,10 +80,11 @@ enum Engine {
         let adjust = profile.goalRateKgPerWeek * kcalPerKg / 7
         let floorKcal = profile.sex == .male ? 1500.0 : 1200.0
         let kcal = max(floorKcal, expenditure + adjust).rounded()
-        let protein = (profile.proteinPerKg * weightKg).rounded()
-        let fat = (kcal * profile.fatPercent / 9).rounded()
-        let carbs = max(0, ((kcal - protein * 4 - fat * 9) / 4)).rounded()
-        return Targets(calories: kcal, protein: protein, carbs: carbs, fat: fat)
+        // A custom (> 0) value wins; anything left on "auto" is derived from the calorie target.
+        let protein = profile.customProtein > 0 ? profile.customProtein : (profile.proteinPerKg * weightKg).rounded()
+        let fat = profile.customFat > 0 ? profile.customFat : (kcal * profile.fatPercent / 9).rounded()
+        let carbs = profile.customCarbs > 0 ? profile.customCarbs : max(0, ((kcal - protein * 4 - fat * 9) / 4)).rounded()
+        return Targets(calories: kcal, protein: protein, carbs: carbs, fat: fat, fiber: profile.fiberGoal)
     }
 
     /// Weekly change of the trend weight in kg (last 7 days), if available.

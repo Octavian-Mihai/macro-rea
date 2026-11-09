@@ -10,11 +10,19 @@ struct DashboardView: View {
     @AppStorage("chartKind") private var kindRaw = ChartKind.rings.rawValue
     @AppStorage("showLeft") private var showLeft = false
     @AppStorage(Keys.healthSync) private var healthSync = false
+    @AppStorage(TodayPrefs.metricsKey) private var metricsRaw = Metric.defaultList
+    @AppStorage(TodayPrefs.chartsKey) private var chartsRaw = TodayPrefs.defaultCharts
+    @AppStorage("showCheckInBanner") private var showBanner = true
+    @State private var customizing = false
     private var reader = ProfileReader()
 
     init(day: Binding<Date>) { _day = day }
 
-    private var kind: ChartKind { ChartKind(rawValue: kindRaw) ?? .rings }
+    private var kind: ChartKind {
+        let k = ChartKind(rawValue: kindRaw) ?? .rings
+        let vis = TodayPrefs.charts(chartsRaw)
+        return vis.contains(k) ? k : vis[0]
+    }
     private var checkInDue: Bool {
         Calendar.current.isDateInToday(day) && (reader.lastCheckIn == 0 || Date().timeIntervalSince1970 - reader.lastCheckIn > 7 * 86400)
     }
@@ -34,7 +42,7 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
-                    if checkInDue {
+                    if checkInDue && showBanner {
                         NavigationLink { CheckInView() } label: {
                             HStack {
                                 Label("Weekly check-in is ready", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
@@ -54,7 +62,7 @@ struct DashboardView: View {
                     }
                     .padding().background(.background, in: RoundedRectangle(cornerRadius: 20))
 
-                    snapshot(totals, plan.targets)
+                    snapshot(totals, DayTotals.micros(dayEntries), plan.targets)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 24)
@@ -62,16 +70,18 @@ struct DashboardView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle(dayTitle(day))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { DayNavToolbar(day: $day, extra: { EmptyView() }) }
+            .toolbar { DayNavToolbar(day: $day, extra: { Button { customizing = true } label: { Label("Customize Today", systemImage: "slider.horizontal.3") } }) }
         }
+        .sheet(isPresented: $customizing) { CustomizeTodayView() }
         .onAppear { publish(totals, plan.targets) }
         .onChange(of: sig) { _, _ in publish(totals, plan.targets) }
     }
 
     private var chips: some View {
+        HStack(spacing: 8) {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(ChartKind.allCases) { k in
+                ForEach(TodayPrefs.charts(chartsRaw)) { k in
                     Button { withAnimation(.snappy) { kindRaw = k.rawValue } } label: {
                         Label(k.title, systemImage: k.icon).font(.subheadline.weight(.medium))
                             .padding(.horizontal, 12).padding(.vertical, 8)
@@ -80,6 +90,12 @@ struct DashboardView: View {
                     }.buttonStyle(.plain)
                 }
             }
+        }
+            Button { customizing = true } label: {
+                Image(systemName: "slider.horizontal.3").font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+            }.buttonStyle(.plain).accessibilityLabel("Customize Today")
         }
     }
 
@@ -96,24 +112,24 @@ struct DashboardView: View {
         }
     }
 
-    /// Always-visible numbers under the chart.
-    private func snapshot(_ t: DayTotals, _ g: Targets) -> some View {
-        HStack(spacing: 0) {
-            stat("Calories", t.calories, g.calories, "", Palette.calories)
-            stat("Protein", t.protein, g.protein, "g", Palette.protein)
-            stat("Carbs", t.carbs, g.carbs, "g", Palette.carbs)
-            stat("Fat", t.fat, g.fat, "g", Palette.fat)
+    /// Numbers under the chart; which ones is up to the user (Customize Today).
+    private func snapshot(_ t: DayTotals, _ m: Micros, _ g: Targets) -> some View {
+        let list = Metric.parse(metricsRaw)
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: min(4, max(1, list.count))), spacing: 16) {
+            ForEach(list) { stat($0, $0.eaten(t, m), $0.target(g)) }
         }
         .padding().background(.background, in: RoundedRectangle(cornerRadius: 20))
+        .overlay { if list.isEmpty { Text("Tap ⋯ → Customize Today to add numbers").font(.caption).foregroundStyle(.secondary) } }
     }
 
-    private func stat(_ name: String, _ eaten: Double, _ target: Double, _ unit: String, _ color: Color) -> some View {
+    private func stat(_ m: Metric, _ eaten: Double, _ target: Double) -> some View {
         let left = target - eaten
+        let n = { (v: Double) in v >= 100 || m.isMacro ? "\(Int(v.rounded()))" : String(format: "%.1f", v) }
         return VStack(spacing: 3) {
-            Text(name).font(.caption).foregroundStyle(color)
-            Text(showLeft ? "\(Int(abs(left).rounded()))" : "\(Int(eaten.rounded()))").font(.headline.monospacedDigit())
+            Text(m.title).font(.caption).foregroundStyle(m.color).lineLimit(1).minimumScaleFactor(0.7)
+            Text(showLeft ? n(abs(left)) : n(eaten)).font(.headline.monospacedDigit())
                 .foregroundStyle(showLeft && left < 0 ? .red : .primary)
-            Text(showLeft ? (left >= 0 ? "left" : "over") : "of \(Int(target.rounded()))\(unit)").font(.caption2).foregroundStyle(.secondary)
+            Text(showLeft ? (left >= 0 ? "left" : "over") : "of \(Int(target.rounded()))\(m.unit)").font(.caption2).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity)
     }
 

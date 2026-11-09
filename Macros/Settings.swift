@@ -27,6 +27,10 @@ struct Profile {
     var goalRateKgPerWeek: Double   // negative = lose
     var proteinPerKg: Double
     var fatPercent: Double          // share of calories
+    var customProtein = 0.0         // grams; 0 = automatic
+    var customCarbs = 0.0
+    var customFat = 0.0
+    var fiberGoal = 28.0
 }
 
 enum Keys {
@@ -43,6 +47,10 @@ enum Keys {
     static let lastCheckIn = "lastCheckIn"
     static let healthSync = "healthSync"
     static let fdcKey = "fdcKey"
+    static let customProtein = "customProtein"
+    static let customCarbs = "customCarbs"
+    static let customFat = "customFat"
+    static let fiberGoal = "fiberGoal"
 }
 
 extension Profile {

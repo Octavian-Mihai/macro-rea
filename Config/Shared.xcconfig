@@ -1,0 +1,2 @@
+// Optional, git-ignored local overrides (e.g. enabling developer-only demo data).
+#include? "../local.xcconfig"

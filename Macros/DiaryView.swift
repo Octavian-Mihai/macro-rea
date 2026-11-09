@@ -21,33 +21,11 @@ struct DiaryView: View {
                 .toolbar { DayNavToolbar(day: $day, extra: {
                     Button("Copy yesterday's food here", action: copyYesterday)
                 }) }
-                .overlay(alignment: .bottomTrailing) { addButton }
                 .sheet(item: $addingMeal) { meal in
                     AddFoodView(title: "Add to \(meal.title)", day: day, meal: meal, allowRecipes: true) { item, q in
                         FoodLogger.log(ctx, item: item, qty: q, day: day, meal: meal)
                     }
                 }
-        }
-    }
-
-    /// Tap = add to the meal that fits the time of day; long-press to pick another meal.
-    private var addButton: some View {
-        Menu {
-            ForEach(Meal.allCases) { m in Button { addingMeal = m } label: { Label(m.title, systemImage: m.icon) } }
-        } label: {
-            Image(systemName: "plus").font(.title2.bold()).foregroundStyle(.white)
-                .frame(width: 58, height: 58).background(Circle().fill(Palette.calories))
-                .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
-        } primaryAction: { addingMeal = defaultMeal }
-        .padding(.trailing, 20).padding(.bottom, 12)
-    }
-
-    private var defaultMeal: Meal {
-        switch Calendar.current.component(.hour, from: .now) {
-        case ..<11: .breakfast
-        case 11..<16: .lunch
-        case 16..<21: .dinner
-        default: .snacks
         }
     }
 
@@ -253,5 +231,31 @@ struct DayMicrosView: View {
         }
         .navigationTitle("Micronutrients")
         .overlay { if entries.isEmpty { Text("Nothing logged").foregroundStyle(.secondary) } }
+    }
+}
+
+
+/// Meal that fits the time of day.
+func defaultMealForNow() -> Meal {
+    switch Calendar.current.component(.hour, from: .now) {
+    case ..<11: .breakfast
+    case 11..<16: .lunch
+    case 16..<21: .dinner
+    default: .snacks
+    }
+}
+
+/// Floating quick-add button shown in the corner of every tab.
+/// Tap = add to the meal that fits the time of day; long-press to pick another meal.
+struct QuickAddButton: View {
+    @Binding var addingMeal: Meal?
+    var body: some View {
+        Menu {
+            ForEach(Meal.allCases) { m in Button { addingMeal = m } label: { Label(m.title, systemImage: m.icon) } }
+        } label: {
+            Image(systemName: "plus").font(.title2.bold()).foregroundStyle(.white)
+                .frame(width: 56, height: 56).background(Circle().fill(Palette.calories))
+                .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+        } primaryAction: { addingMeal = defaultMealForNow() }
     }
 }

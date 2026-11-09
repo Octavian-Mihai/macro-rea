@@ -13,6 +13,7 @@ struct RootView: View {
     @AppStorage(Keys.onboarded) private var onboarded = false
 
     @State private var day = Calendar.current.startOfDay(for: .now)
+    @State private var quickMeal: Meal?
     @Environment(\.modelContext) private var ctx
     @AppStorage(Keys.healthSync) private var healthSync = false
 
@@ -23,6 +24,15 @@ struct RootView: View {
             WeightView().tabItem { Label("Weight", systemImage: "scalemass") }
             InsightsView().tabItem { Label("Insights", systemImage: "chart.xyaxis.line") }
             SettingsView().tabItem { Label("Settings", systemImage: "gearshape") }
+        }
+        .contentMargins(.bottom, 72, for: .scrollContent)
+        .overlay(alignment: .bottomTrailing) {
+            if onboarded { QuickAddButton(addingMeal: $quickMeal).padding(.trailing, 16).padding(.bottom, 78) }
+        }
+        .sheet(item: $quickMeal) { meal in
+            AddFoodView(title: "Add to \(meal.title)", day: day, meal: meal, allowRecipes: true) { item, q in
+                FoodLogger.log(ctx, item: item, qty: q, day: day, meal: meal)
+            }
         }
         .fullScreenCover(isPresented: .constant(!onboarded)) { OnboardingView() }
         .task { if healthSync { await Health.shared.importWeights(into: ctx) } }
@@ -57,9 +67,15 @@ struct ProfileReader {
     @AppStorage(Keys.fatPercent) var fatPercent = 0.27
     @AppStorage(Keys.appliedExpenditure) var applied = 0.0
     @AppStorage(Keys.lastCheckIn) var lastCheckIn = 0.0
+    @AppStorage(Keys.customProtein) var customProtein = 0.0
+    @AppStorage(Keys.customCarbs) var customCarbs = 0.0
+    @AppStorage(Keys.customFat) var customFat = 0.0
+    @AppStorage(Keys.fiberGoal) var fiberGoal = 28.0
     var profile: Profile {
-        .from(sex: sex, age: age, height: height, activity: activity, goalRate: goalRate,
-              proteinPerKg: proteinPerKg, fatPercent: fatPercent)
+        var p = Profile.from(sex: sex, age: age, height: height, activity: activity, goalRate: goalRate,
+                             proteinPerKg: proteinPerKg, fatPercent: fatPercent)
+        p.customProtein = customProtein; p.customCarbs = customCarbs; p.customFat = customFat; p.fiberGoal = fiberGoal
+        return p
     }
 }
 
