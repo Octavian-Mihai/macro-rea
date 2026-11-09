@@ -110,7 +110,7 @@ struct GoalFields: View {
             Spacer()
             TextField(auto ? "Auto" : "28", text: Binding(
                 get: { value.wrappedValue > 0 ? String(Int(value.wrappedValue.rounded())) : "" },
-                set: { value.wrappedValue = Double($0.filter(\.isNumber)) ?? 0 }))
+                set: { value.wrappedValue = Double(String($0.filter(\.isNumber).prefix(3))) ?? 0 }))
                 .keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 80)
             Text(unit).foregroundStyle(.secondary)
         }

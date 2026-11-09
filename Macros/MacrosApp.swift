@@ -57,7 +57,7 @@ struct Plan {
 }
 
 /// Reads the AppStorage profile in one place.
-struct ProfileReader {
+struct ProfileReader: DynamicProperty {
     @AppStorage(Keys.sex) var sex = Sex.male.rawValue
     @AppStorage(Keys.age) var age = 30
     @AppStorage(Keys.height) var height = 178.0

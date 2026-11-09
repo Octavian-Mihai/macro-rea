@@ -23,8 +23,11 @@ struct DashboardView: View {
         let vis = TodayPrefs.charts(chartsRaw)
         return vis.contains(k) ? k : vis[0]
     }
+    /// Due once there is at least a week of history and 7 days have passed since the last check-in.
     private var checkInDue: Bool {
-        Calendar.current.isDateInToday(day) && (reader.lastCheckIn == 0 || Date().timeIntervalSince1970 - reader.lastCheckIn > 7 * 86400)
+        guard Calendar.current.isDateInToday(day), let first = weights.map(\.day).min(),
+              Date().timeIntervalSince(first) >= 7 * 86400 else { return false }
+        return reader.lastCheckIn == 0 || Date().timeIntervalSince1970 - reader.lastCheckIn > 7 * 86400
     }
 
     var body: some View {
