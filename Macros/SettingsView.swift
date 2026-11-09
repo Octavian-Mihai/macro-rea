@@ -45,12 +45,59 @@ struct SettingsView: View {
                     if await Health.shared.requestAuth() { await Health.shared.importWeights(into: ctx) } else { healthSync = false }
                 }
             }
-                .navigationTitle("Settings")
+                .keyboardDoneButton()
+            .navigationTitle("Settings")
                 .alert("Erase all logged food and weight?", isPresented: $confirmClear) {
                     Button("Erase", role: .destructive) { DemoData.clear(from: ctx) }
                     Button("Cancel", role: .cancel) {}
                 } message: { Text("This can't be undone.") }
         }
+    }
+}
+
+/// Type a whole number from the keyboard. Valid values apply as you type; leaving the field snaps it into range.
+extension View {
+    /// One "Done" button above the keyboard (number pads have no return key).
+    func keyboardDoneButton() -> some View {
+        toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+            }
+        }
+    }
+}
+
+struct NumberField: View {
+    let title: String
+    let unit: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField("", text: $text)
+                .keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 70)
+                .focused($focused)
+                .onChange(of: text) { _, new in
+                    let digits = String(new.filter(\.isNumber).prefix(3))
+                    if digits != new { text = digits }
+                    if let v = Double(digits), range.contains(v) { value = v }
+                }
+                .onChange(of: focused) { _, on in if !on { snap() } }
+            Text(unit).foregroundStyle(.secondary)
+        }
+        .onAppear { text = String(Int(value.rounded())) }
+    }
+
+    private func snap() {
+        let v = min(max(Double(text) ?? value, range.lowerBound), range.upperBound)
+        value = v
+        text = String(Int(v.rounded()))
     }
 }
 
@@ -67,8 +114,8 @@ struct ProfileFields: View {
     var body: some View {
         Section("About you") {
             Picker("Sex", selection: $sex) { ForEach(Sex.allCases) { Text($0.rawValue.capitalized).tag($0.rawValue) } }
-            Stepper("Age: \(age)", value: $age, in: 14...90)
-            Stepper("Height: \(Int(height)) cm", value: $height, in: 120...230)
+            NumberField(title: "Age", unit: "years", value: Binding(get: { Double(age) }, set: { age = Int($0) }), range: 14...90)
+            NumberField(title: "Height", unit: "cm", value: $height, range: 120...230)
             Picker("Activity", selection: $activity) { ForEach(Activity.allCases) { Text($0.title).tag($0.rawValue) } }
             Toggle("Use pounds (lb)", isOn: $useLbs)
         }
@@ -147,6 +194,7 @@ struct OnboardingView: View {
                 }
                 .bold().disabled(Double(weightText.replacingOccurrences(of: ",", with: ".")) == nil)
             }
+            .keyboardDoneButton()
             .navigationTitle("Welcome")
         }
     }
