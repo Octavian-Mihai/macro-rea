@@ -18,6 +18,7 @@ struct RootView: View {
     @AppStorage(Theme.storageKey, store: Theme.store) private var themeID = "classic"
     @AppStorage("appearance") private var appearance = "system"
     @Environment(\.modelContext) private var ctx
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(Keys.healthSync) private var healthSync = false
 
     var body: some View {
@@ -44,13 +45,24 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: .constant(!onboarded)) { OnboardingView() }
         .task { if healthSync { await Health.shared.importWeights(into: ctx) } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { openAddIfRequested() } }
         .onAppear {
+            openAddIfRequested()
             // The app was closed while a food was being entered: reopen the add sheet where the user left off.
             if onboarded, quickMeal == nil, let d = AddDraft.load() {
                 day = Calendar.current.startOfDay(for: d.day)
                 quickMeal = Meal(rawValue: d.meal)
             }
         }
+    }
+}
+
+extension RootView {
+    /// The widget's + button: go to today and open the add-food screen for the meal that fits the time of day.
+    fileprivate func openAddIfRequested() {
+        guard AddFoodRequest.take(), onboarded else { return }
+        day = Calendar.current.startOfDay(for: .now)
+        if quickMeal == nil { quickMeal = defaultMealForNow() }
     }
 }
 

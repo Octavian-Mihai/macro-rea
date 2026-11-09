@@ -24,6 +24,7 @@ struct SettingsView: View {
                     } header: { Text("Demo (local build only)") }
                 }
                 AppearanceSection()
+                AppIconSection()
                 Section { NavigationLink { RecipesView() } label: { Label("Recipes & templates", systemImage: "book") } }
                 Section {
                     Toggle("Sync with Apple Health", isOn: $healthSync)
@@ -286,6 +287,50 @@ struct AppearanceSection: View {
             }
         } header: { Text("Theme") } footer: {
             Text("Colours for calories, protein, carbs and fat. High contrast uses deeper tones that are easier to tell apart.")
+        }
+    }
+}
+
+/// Home Screen icon: the dark default, or the light one.
+struct AppIconSection: View {
+    @State private var current = UIApplication.shared.alternateIconName
+    @State private var failed = false
+
+    private let options: [(name: String?, title: String, file: String)] = [
+        (nil, "Night", "IconNight"), ("AppIconLight", "Light", "IconLight"),
+    ]
+
+    var body: some View {
+        Section {
+            HStack(spacing: 24) {
+                ForEach(options, id: \.title) { o in
+                    Button { choose(o.name) } label: {
+                        VStack(spacing: 8) {
+                            Image(o.file).resizable().frame(width: 64, height: 64)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(current == o.name ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: current == o.name ? 3 : 1))
+                            Text(o.title).font(.footnote).foregroundStyle(.primary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(o.title) icon")
+                    .accessibilityAddTraits(current == o.name ? .isSelected : [])
+                }
+                Spacer()
+            }
+            .padding(.vertical, 4)
+        } header: { Text("App icon") } footer: {
+            if failed { Text("Couldn't change the icon. Try again.").foregroundStyle(.red) }
+        }
+    }
+
+    private func choose(_ name: String?) {
+        guard name != current else { return }
+        UIApplication.shared.setAlternateIconName(name) { error in
+            DispatchQueue.main.async {
+                if error == nil { current = name; failed = false } else { failed = true }
+            }
         }
     }
 }

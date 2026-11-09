@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 struct MacroEntry: TimelineEntry {
     let date: Date
@@ -45,6 +46,18 @@ struct CalorieRing: View {
     }
 }
 
+/// Opens the app straight on the add-food screen.
+struct AddButton: View {
+    var body: some View {
+        Button(intent: OpenAddFoodIntent()) {
+            Image(systemName: "plus").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 32, height: 32).background(Circle().fill(Palette.calories))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add food")
+    }
+}
+
 struct MacroLine: View {
     let name: String, value: Double, target: Double, color: Color
     var body: some View {
@@ -77,11 +90,16 @@ struct MacrosWidgetView: View {
                     MacroLine(name: "Protein", value: s.protein, target: s.pTarget, color: Palette.protein)
                     MacroLine(name: "Carbs", value: s.carbs, target: s.cTarget, color: Palette.carbs)
                     MacroLine(name: "Fat", value: s.fat, target: s.fTarget, color: Palette.fat)
-                    Text("\(Int(s.calories.rounded())) / \(Int(s.calTarget.rounded())) kcal").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Text("\(Int(s.calories.rounded())) / \(Int(s.calTarget.rounded())) kcal").font(.caption).foregroundStyle(.secondary)
+                        Spacer(minLength: 4)
+                        AddButton()
+                    }
                 }
             }
         default:
-            CalorieRing(snap: s).padding(6)
+            CalorieRing(snap: s).padding(20)
+                .overlay(alignment: .bottomTrailing) { AddButton() }
         }
     }
 }

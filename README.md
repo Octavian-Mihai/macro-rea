@@ -1,4 +1,4 @@
-# Macros
+# Toate Macros
 
 A personal macro and calorie tracker for iPhone (SwiftUI, SwiftData, Swift Charts, WidgetKit, HealthKit).
 
