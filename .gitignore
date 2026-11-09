@@ -1,0 +1,11 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# build output
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store
