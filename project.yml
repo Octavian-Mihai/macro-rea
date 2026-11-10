@@ -35,6 +35,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.octa.macros
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSCameraUsageDescription: "Scan food barcodes to log them quickly."
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Import your weight history from Apple Health."
@@ -59,5 +60,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.octa.macros.widget
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_CFBundleDisplayName: Toate Macros
         SKIP_INSTALL: YES
